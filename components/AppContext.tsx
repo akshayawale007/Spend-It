@@ -13,7 +13,7 @@ export type AppUser = {
   /** Supabase is configured, so a local user can sign in to sync. */
   canSignIn: boolean;
 };
-export type Tab = 'exp' | 'ins' | 'set';
+export type Tab = 'exp' | 'ins' | 'set' | 'me';
 
 type Ctx = {
   user: AppUser;
@@ -21,6 +21,9 @@ type Ctx = {
   goMonth: (k: string) => void;
   tab: Tab;
   setTab: (t: Tab) => void;
+  /** Category the expense list is filtered to ('' = uncategorised), or null for all. */
+  catFilter: string | null;
+  setCatFilter: (id: string | null) => void;
   heroOpen: boolean;
   setHeroOpen: (v: boolean) => void;
   isExpanded: (id: string) => boolean;
@@ -36,18 +39,17 @@ export function AppProvider({ user, children }: { user: AppUser; children: React
   const [month, setMonth] = useState(() => curKey());
   const [tab, setTabState] = useState<Tab>('exp');
   const [heroOpen, setHeroOpen] = useState(false);
+  const [catFilter, setCatFilter] = useState<string | null>(null);
   const [expanded, setExpandedSet] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     try { if (JSON.parse(localStorage.getItem(UI_KEY) || '{}').tab === 'ins') setTabState('ins'); } catch { /* ignore */ }
-    // Laptops have room beside the list, so show income sources from the start.
-    if (window.matchMedia('(min-width: 1024px)').matches) setHeroOpen(true);
   }, []);
 
   const setTab = useCallback((t: Tab) => {
     setTabState(t);
-    // Only the two main views are remembered; Settings isn't where you want to land on reload.
-    if (t !== 'set') try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: t })); } catch { /* ignore */ }
+    // Only the two main views are remembered; Settings and Profile aren't where you want to land on reload.
+    if (t === 'exp' || t === 'ins') try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: t })); } catch { /* ignore */ }
   }, []);
 
   const goMonth = useCallback((k: string) => {
@@ -65,9 +67,9 @@ export function AppProvider({ user, children }: { user: AppUser; children: React
   }, []);
 
   const value = useMemo<Ctx>(() => ({
-    user, month, goMonth, tab, setTab, heroOpen, setHeroOpen,
+    user, month, goMonth, tab, setTab, catFilter, setCatFilter, heroOpen, setHeroOpen,
     isExpanded: id => expanded.has(id), setExpanded,
-  }), [user, month, goMonth, tab, setTab, heroOpen, expanded, setExpanded]);
+  }), [user, month, goMonth, tab, setTab, catFilter, heroOpen, expanded, setExpanded]);
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }

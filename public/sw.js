@@ -1,6 +1,6 @@
 // Spendit service worker: app shell + static assets, so the installed app opens offline.
 // Data lives in localStorage and syncs through Supabase, which this worker never touches.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL = `shell-${VERSION}`;
 const ASSETS = `assets-${VERSION}`;
 const PRECACHE = ['/', '/login', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];

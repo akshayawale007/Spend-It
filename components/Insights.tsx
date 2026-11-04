@@ -6,6 +6,9 @@ import type { Totals } from '@/lib/calc';
 import type { ExpenseWithEntries } from '@/lib/types';
 import { calcView, useCategoryLookup } from '@/hooks/useMonthData';
 import { useApp } from './AppContext';
+import { Collapse } from './Collapse';
+import { ExpenseCard } from './ExpenseCard';
+import { sortExpenses } from './ExpenseList';
 import { I } from './icons';
 import { SyncNotice } from './SyncNotice';
 import { cssVar } from './util';
@@ -42,9 +45,12 @@ export function Insights({ expenses, totals: t, closed }: { expenses: ExpenseWit
 export function SpendByCategory({ expenses, total, title = 'Spent by category' }: {
   expenses: ExpenseWithEntries[]; total: number; title?: string;
 }) {
-  const { month } = useApp();
+  const { month, tab, catFilter, setCatFilter } = useApp();
   const catOf = useCategoryLookup();
   const [drawn, setDrawn] = useState(false);
+  const [openCat, setOpenCat] = useState<string | null>(null);
+  // Insights: tapping a category expands its expenses under it. Expenses tab: it filters the list (tap again to clear).
+  const inline = tab !== 'exp';
 
   useEffect(() => {
     setDrawn(false);
@@ -87,19 +93,33 @@ export function SpendByCategory({ expenses, total, title = 'Spent by category' }
         </svg>
         <div className="donut-c"><small>{monthShort(month)} spent</small><b>{fmt(total)}</b></div>
       </div>
-      <div className="crows">
+      <div className={!inline && catFilter !== null ? 'crows filtering' : 'crows'}>
         {ids.map(id => {
           const c = catOf(id || null), v = by.get(id) ?? 0, b = bud.get(id) ?? 0;
           const pct = total ? Math.round((v / total) * 100) : 0;
+          const isOpen = inline && openCat === id;
           return (
-            <div key={id} className="crow" style={cssVar(c.color)}>
-              <div className="crow-t"><i /><span className="nm">{c.name}</span><b>{fmt(v)}</b><em>{pct}%</em></div>
-              <div className="crow-bar"><span style={{ width: drawn ? `${total ? (v / total) * 100 : 0}%` : 0 }} /></div>
-              {b > 0 && (
-                <div className="crow-sub">
-                  {fmt(v)} of {fmt(b)} expected
-                  {v > b && <> · <span style={{ color: 'var(--over)' }}>{fmt(v - b)} over</span></>}
-                </div>
+            <div key={id} className="crow-wrap">
+              <button className="crow" style={cssVar(c.color)}
+                aria-pressed={inline ? undefined : catFilter === id}
+                aria-expanded={inline ? isOpen : undefined} aria-controls={inline ? `cat-${id || 'none'}` : undefined}
+                title={inline ? undefined : `Show only ${c.name} expenses`}
+                onClick={() => inline ? setOpenCat(isOpen ? null : id) : setCatFilter(catFilter === id ? null : id)}>
+                <div className="crow-t"><i /><span className="nm">{c.name}</span><b>{fmt(v)}</b><em>{pct}%</em>{inline && <I.chevSm />}</div>
+                <div className="crow-bar"><span style={{ width: drawn ? `${total ? (v / total) * 100 : 0}%` : 0 }} /></div>
+                {b > 0 && (
+                  <div className="crow-sub">
+                    {fmt(v)} of {fmt(b)} expected
+                    {v > b && <> · <span style={{ color: 'var(--over)' }}>{fmt(v - b)} over</span></>}
+                  </div>
+                )}
+              </button>
+              {inline && (
+                <Collapse open={isOpen} id={`cat-${id || 'none'}`}>
+                  <div className="crow-list">
+                    {sortExpenses(expenses.filter(e => (e.category_id ?? '') === id)).map(e => <ExpenseCard key={e.id} e={e} />)}
+                  </div>
+                </Collapse>
               )}
             </div>
           );

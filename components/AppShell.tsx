@@ -7,6 +7,7 @@ import { CompactBar, Controls, DeskHeader, Dock, Fab, Sidebar } from './Chrome';
 import { ExpenseList } from './ExpenseList';
 import { Hero } from './Hero';
 import { Insights, SpendByCategory } from './Insights';
+import { ProfilePage } from './ProfilePage';
 import { SettingsPage } from './SettingsPage';
 import { SheetProvider } from './Sheet';
 import { SyncNotice, SyncToasts } from './SyncNotice';
@@ -41,6 +42,8 @@ function Main() {
         <DeskHeader />
         {tab === 'set' ? (
           <SettingsPage />
+        ) : tab === 'me' ? (
+          <ProfilePage />
         ) : !loaded ? (
           <div className="loading" role="status">Loading your month…</div>
         ) : tab === 'exp' ? (

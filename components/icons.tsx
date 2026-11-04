@@ -30,6 +30,7 @@ export const I = {
   cal: () => <Sv size={16}><rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M8 3v4M16 3v4M3.5 10h17" /></Sv>,
   list: () => <Sv><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="4.5" cy="6" r="1" /><circle cx="4.5" cy="12" r="1" /><circle cx="4.5" cy="18" r="1" /></Sv>,
   pie: ({ size = 18 }: { size?: number } = {}) => <Sv size={size}><path d="M21 12A9 9 0 1 1 12 3v9h9Z" /><path d="M15 3.5A9 9 0 0 1 20.5 9H15V3.5Z" /></Sv>,
+  x: () => <Sv size={13} sw={2.6}><path d="M18 6 6 18M6 6l12 12" /></Sv>,
   logout: () => <Sv size={15}><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4" /></Sv>,
   // Duotone navigation icons: a soft filled layer (.duo) under crisp 1.8px strokes.
   navExpenses: () => (

@@ -20,17 +20,36 @@ export function SheetProvider({ children }: { children: ReactNode }) {
   const stackRef = useRef(stack);
   stackRef.current = stack;
 
-  const requestClose = useCallback((id: number) => {
+  // Each open sheet adds a history entry, so the phone's back button closes the top sheet
+  // instead of leaving the page. Closing from the UI pops that entry again.
+  const ownPops = useRef(0);
+
+  const requestClose = useCallback((id: number, fromBack = false) => {
     const item = stackRef.current.find(s => s.id === id);
     if (!item || item.closing) return;
     item.opts.onClose?.();
     setStack(s => s.map(x => (x.id === id ? { ...x, closing: true } : x)));
+    if (!fromBack && history.state?.spenditSheet === id) {
+      ownPops.current++;
+      history.back();
+    }
   }, []);
 
   const open = useCallback<Api['open']>((render, opts = {}) => {
     const id = ++seq;
     setStack(s => [...s, { id, render, opts, closing: false }]);
+    history.pushState({ ...history.state, spenditSheet: id }, '');
     return () => requestClose(id);
+  }, [requestClose]);
+
+  useEffect(() => {
+    const onPop = () => {
+      if (ownPops.current) { ownPops.current--; return; }
+      const live = stackRef.current.filter(s => !s.closing);
+      if (live.length) requestClose(live[live.length - 1].id, true);
+    };
+    addEventListener('popstate', onPop);
+    return () => removeEventListener('popstate', onPop);
   }, [requestClose]);
 
   const confirm = useCallback<Api['confirm']>(o => new Promise<boolean>(resolve => {
@@ -102,32 +121,63 @@ function Sheet({ item, top, onRequestClose, onRemoved }: {
     return () => document.removeEventListener('keydown', onKey);
   }, [top, onRequestClose]);
 
-  const onDown = (e: React.PointerEvent) => {
-    if (window.innerWidth >= 640 || !sheet.current) return;
-    drag.current = { y0: e.clientY, dy: 0 };
-    sheet.current.style.transition = 'none';
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  };
-  const onMove = (e: React.PointerEvent) => {
-    if (!drag.current || !sheet.current) return;
-    drag.current.dy = Math.max(0, e.clientY - drag.current.y0);
-    sheet.current.style.transform = `translateY(${drag.current.dy}px)`;
-  };
-  const onUp = () => {
-    if (!drag.current || !sheet.current) return;
-    const { dy } = drag.current;
-    drag.current = null;
-    sheet.current.style.transition = '';
-    if (dy > 90) onRequestClose();
-    else sheet.current.style.transform = '';
-  };
+  // Swipe down to close (phones): from anywhere on the sheet while it's scrolled to the top.
+  // Native touch listeners so the drag can take over from scrolling (needs passive: false).
+  const closeRef = useRef(onRequestClose);
+  closeRef.current = onRequestClose;
+  useEffect(() => {
+    const el = sheet.current;
+    if (!el) return;
+    let start: { x: number; y: number; t: number } | null = null;
+    const onStart = (e: TouchEvent) => {
+      if (window.innerWidth >= 640 || e.touches.length > 1) return;
+      const t = e.target as HTMLElement;
+      // Leave sliders and text areas alone; sideways swipes (chip rows) are ignored below.
+      if (t.closest('input[type="range"], textarea')) return;
+      start = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!start) return;
+      const dy = e.touches[0].clientY - start.y, dx = e.touches[0].clientX - start.x;
+      if (!drag.current) {
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6) { start = null; return; }
+        if (dy < 6) { if (dy < -6) start = null; return; }
+        if (el.scrollTop > 0) { start = null; return; }
+        drag.current = { y0: start.y, dy: 0 };
+        el.style.transition = 'none';
+      }
+      e.preventDefault();
+      drag.current.dy = Math.max(0, dy);
+      el.style.transform = `translateY(${drag.current.dy}px)`;
+    };
+    const onEnd = () => {
+      const d = drag.current, s0 = start;
+      start = null;
+      if (!d) return;
+      drag.current = null;
+      el.style.transition = '';
+      const fast = s0 && d.dy > 40 && d.dy / (Date.now() - s0.t) > 0.6;
+      if (d.dy > 110 || fast) closeRef.current();
+      else el.style.transform = '';
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: false });
+    el.addEventListener('touchend', onEnd);
+    el.addEventListener('touchcancel', onEnd);
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
+      el.removeEventListener('touchcancel', onEnd);
+    };
+  }, []);
 
   return (
     <div className={shown ? 'sheet-wrap in' : 'sheet-wrap'}>
       <div className="scrim" onClick={onRequestClose} />
       <div ref={sheet} className={item.opts.tall ? 'sheet tall' : 'sheet'} role="dialog" aria-modal="true"
         aria-label={item.opts.label} tabIndex={-1}>
-        <div className="grab" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}><i /></div>
+        <div className="grab"><i /></div>
         {item.render(onRequestClose)}
       </div>
     </div>

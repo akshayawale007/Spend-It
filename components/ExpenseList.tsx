@@ -4,13 +4,14 @@ import { isDone } from '@/lib/calc';
 import { monthName, shiftKey } from '@/lib/format';
 import { useStore } from '@/lib/store';
 import type { ExpenseWithEntries } from '@/lib/types';
-import { calcView } from '@/hooks/useMonthData';
+import { calcView, useCategoryLookup } from '@/hooks/useMonthData';
 import { useApp } from './AppContext';
 import { ExpenseCard } from './ExpenseCard';
 import { ExpenseSheet } from './ExpenseSheet';
 import { I } from './icons';
 import { useSheets } from './Sheet';
 import { useToast } from './Toast';
+import { cssVar } from './util';
 
 const lastDate = (e: ExpenseWithEntries) =>
   e.kind === 'spent' ? e.date ?? '' : e.entries.reduce((a, x) => (x.date > a ? x.date : a), '');
@@ -26,7 +27,8 @@ export function sortExpenses(list: ExpenseWithEntries[]) {
 }
 
 export function ExpenseList({ expenses }: { expenses: ExpenseWithEntries[] }) {
-  const { month } = useApp();
+  const { month, catFilter, setCatFilter } = useApp();
+  const catOf = useCategoryLookup();
   const { open } = useSheets();
   const toast = useToast();
   const prevK = shiftKey(month, -1);
@@ -60,14 +62,22 @@ export function ExpenseList({ expenses }: { expenses: ExpenseWithEntries[] }) {
     );
   }
 
-  const items = sortExpenses(expenses);
+  const filterCat = catFilter !== null ? catOf(catFilter || null) : null;
+  const items = sortExpenses(catFilter === null ? expenses : expenses.filter(e => (e.category_id ?? '') === catFilter));
   const openCount = items.filter(e => !isDone(calcView(e))).length;
   return (
     <section id="list">
       <div className="list-h">
         <h2>Expenses</h2>
-        <span>{items.length} item{items.length > 1 ? 's' : ''}{openCount ? ` · ${openCount} open` : ''}</span>
+        <span>{items.length} item{items.length !== 1 ? 's' : ''}{openCount ? ` · ${openCount} open` : ''}</span>
       </div>
+      {filterCat && (
+        <button className="filter-chip" style={cssVar(filterCat.color)} onClick={() => setCatFilter(null)}
+          aria-label={`Showing only ${filterCat.name}. Show all expenses`}>
+          <i />{filterCat.name}<I.x />
+        </button>
+      )}
+      {filterCat && !items.length && <p className="filter-empty">No {filterCat.name} expenses in {monthName(month)}.</p>}
       {items.map(e => <ExpenseCard key={e.id} e={e} />)}
       {copyBtn && <div className="copy-row">{copyBtn}</div>}
     </section>
