@@ -1,11 +1,12 @@
 'use client';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { backupToData, dataToBackup, parseBackup } from '@/lib/backup';
 import { todayISO } from '@/lib/format';
 import { store, useStore, type SyncState } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
 import { useApp, type AppUser } from './AppContext';
 import { I } from './icons';
+import { Loader } from './Loader';
 import { useSheets } from './Sheet';
 import { useToast } from './Toast';
 
@@ -25,6 +26,22 @@ export function Avatar({ user }: { user: AppUser }) {
     : <span className="av">{user.mode === 'local' ? '?' : (user.name || user.email || '?').slice(0, 1).toUpperCase()}</span>;
 }
 
+/** Development-only helpers. Never part of a production build. */
+function DevTools() {
+  const [showLoader, setShowLoader] = useState(false);
+  return (
+    <div className="set-sec"><h4>Dev only</h4>
+      <div className="set-card">
+        <div className="data-btns">
+          <button className="ghost" onClick={() => setShowLoader(true)}>Test loader</button>
+        </div>
+      </div>
+      {/* Runs until tapped. The loader is portalled to <body>, but React still bubbles the tap here. */}
+      {showLoader && <div onClick={() => setShowLoader(false)}><Loader label="Tap anywhere to close" /></div>}
+    </div>
+  );
+}
+
 const HOWTO: [string, string][] = [
   ['Available', 'Income minus your expected budgets and one-off spends. This is what you can still plan with.'],
   ['ABB (actual bank balance)', 'Income minus everything you’ve actually spent so far.'],
@@ -38,7 +55,7 @@ const HOWTO: [string, string][] = [
 export function ProfilePage() {
   const toast = useToast();
   const { confirm } = useSheets();
-  const { user } = useApp();
+  const { user, setTab } = useApp();
   const sync = useStore(s => s.sync);
   const pending = useStore(s => s.pending);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -100,6 +117,13 @@ export function ProfilePage() {
         <span>{user.mode === 'local' ? 'Data stays on this device' : user.email}</span>
       </div>
 
+      {/* Phones: Settings lives here instead of the dock. Laptops reach it from the sidebar. */}
+      <button className="prof-link glass" onClick={() => { setTab('set'); window.scrollTo({ top: 0 }); }}>
+        <span className="pl-ic"><I.navSettings /></span>
+        <span className="who"><b>Settings</b><span>Categories and owners</span></span>
+        <I.right />
+      </button>
+
       <div className="set-sec"><h4>Your data</h4>
         <div className="set-card">
           <div className={`sync ${sync === 'saved' ? 'synced' : sync === 'saving' ? 'syncing' : sync}`} role="status">
@@ -135,6 +159,9 @@ export function ProfilePage() {
           )}
         </div>
       </div>
+
+      {/* Dev builds only: `next build` replaces NODE_ENV with "production" and drops this block. */}
+      {process.env.NODE_ENV === 'development' && <DevTools />}
 
       <div className="set-sec"><h4>How the numbers work</h4>
         <dl className="set-card howto">

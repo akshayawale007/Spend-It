@@ -11,6 +11,9 @@ export const entriesTotal = (e: CalcExpense) => round2(e.entries.reduce((a, x) =
 
 export const spentOf = (e: CalcExpense) => (e.kind === 'spent' ? round2(e.amount) : entriesTotal(e));
 
+/** An expected expense with no fixed budget (amount 0): only logged spends count. */
+export const isOpenBudget = (e: CalcExpense) => e.kind === 'expected' && !(e.amount > 0);
+
 export const isFull = (e: CalcExpense) => e.kind === 'expected' && e.amount > 0 && entriesTotal(e) >= e.amount;
 
 export const isDone = (e: CalcExpense) => e.kind === 'spent' || isFull(e);
@@ -24,8 +27,8 @@ export function deduction(e: CalcExpense, closed: boolean) {
   return closed ? s : Math.max(round2(e.amount), s);
 }
 
-/** Gauge percentage (expected only); may exceed 100. */
-export const gaugePct = (e: CalcExpense) => (e.amount > 0 ? (entriesTotal(e) / e.amount) * 100 : 0);
+/** Gauge percentage (expected only); may exceed 100. No fixed budget → always 100. */
+export const gaugePct = (e: CalcExpense) => (e.amount > 0 ? (entriesTotal(e) / e.amount) * 100 : 100);
 
 export type Totals = {
   funds: number;

@@ -1,4 +1,6 @@
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { VERIFIED_USER_HEADER } from '@/lib/supabase/middleware';
 import type { User } from '@supabase/supabase-js';
 import { AppShell } from '@/components/AppShell';
 import type { AppUser } from '@/components/AppContext';
@@ -22,6 +24,12 @@ function toAppUser(user: User): AppUser {
 export default async function Home() {
   // No Supabase configured: everything is saved on this device.
   if (!supabaseConfigured) return <AppShell user={localUser} />;
+
+  // Middleware has just verified the user with Supabase; reuse that instead of a second round trip.
+  const verified = (await headers()).get(VERIFIED_USER_HEADER);
+  if (verified) {
+    try { return <AppShell user={toAppUser(JSON.parse(decodeURIComponent(verified)) as User)} />; } catch { /* fall through */ }
+  }
 
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();

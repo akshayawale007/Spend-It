@@ -91,7 +91,7 @@ describe('ops', () => {
   });
 
   it('upserts by id', () => {
-    const d = { categories: [], incomes: [], expenses: [], entries: [] };
+    const d = { owners: [], categories: [], incomes: [], expenses: [], entries: [] };
     const row = { id: 'a', month_key: '2026-11', name: 'Salary', amount: 1, date: null, created_at: '' };
     const d1 = applyOps(d, [{ t: 'upsert', table: 'incomes', rows: [row] }]);
     const d2 = applyOps(d1, [{ t: 'upsert', table: 'incomes', rows: [{ ...row, amount: 5 }] }]);

@@ -5,15 +5,17 @@ type Row<T extends keyof Database['public']['Tables']> =
   Omit<Database['public']['Tables'][T]['Row'], 'user_id' | 'updated_at'> & { updated_at?: string };
 
 export type Category = Row<'categories'>;
+export type Owner = Row<'owners'>;
 export type Income = Row<'incomes'>;
 export type Expense = Row<'expenses'>;
 export type Entry = Row<'spend_entries'>;
 export type Kind = Expense['kind'];
 
-export type TableName = 'categories' | 'incomes' | 'expenses' | 'spend_entries';
+export type TableName = 'categories' | 'owners' | 'incomes' | 'expenses' | 'spend_entries';
 
 export type Data = {
   categories: Category[];
+  owners: Owner[];
   incomes: Income[];
   expenses: Expense[];
   entries: Entry[];

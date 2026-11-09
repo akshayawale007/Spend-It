@@ -1,19 +1,21 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { addCategory, deleteCategory, updateCategory } from '@/lib/actions';
+import { addCategory, addOwner, deleteCategory, deleteOwner, updateCategory, updateOwner } from '@/lib/actions';
 import { fallbackCategory, PALETTE } from '@/lib/categories';
 import { store, useStore } from '@/lib/store';
-import type { Category } from '@/lib/types';
-import { useCategories } from '@/hooks/useMonthData';
+import type { Category, Owner } from '@/lib/types';
+import { useCategories, useOwners } from '@/hooks/useMonthData';
+import { useApp } from './AppContext';
 import { I } from './icons';
 import { useSheets } from './Sheet';
 import { useToast } from './Toast';
 import { cssVar, shake } from './util';
 
-/** Settings: category configuration. Data, account and help live in the profile sheet. */
+/** Settings: categories and owners. Data, account and help live in the profile sheet. */
 export function SettingsPage() {
   const toast = useToast();
   const { confirm } = useSheets();
+  const { setTab } = useApp();
   const categories = useCategories();
   const expenses = useStore(s => s.data.expenses);
   const [openPal, setOpenPal] = useState<string | null>(null);
@@ -43,12 +45,19 @@ export function SettingsPage() {
 
   return (
     <section id="view-set">
-      <div className="page-h"><h1>Settings</h1></div>
+      <div className="page-h">
+        <button className="icon-btn back-btn" aria-label="Back to profile" onClick={() => setTab('me')}><I.left /></button>
+        <h1>Settings</h1>
+      </div>
       <div className="set-sec"><h4>Expense categories</h4>
         <div className="set-card">
           {categories.map(c => (
-            <CategoryRow key={c.id} c={c} count={usage[c.id] ?? 0} palOpen={openPal === c.id}
-              onTogglePal={() => setOpenPal(openPal === c.id ? null : c.id)} onDelete={() => removeCat(c)} />
+            <NamedRow key={c.id} c={c} kind="category" count={usage[c.id] ?? 0} palOpen={openPal === c.id}
+              onTogglePal={() => setOpenPal(openPal === c.id ? null : c.id)} onDelete={() => removeCat(c)}
+              onSave={patch => {
+                const cur = store.get().data.categories.find(x => x.id === c.id);
+                if (cur) updateCategory({ ...cur, ...patch });
+              }} />
           ))}
           <form className="add-cat" onSubmit={e => {
             e.preventDefault();
@@ -63,12 +72,70 @@ export function SettingsPage() {
           </form>
         </div>
       </div>
+      <OwnersSection openPal={openPal} setOpenPal={setOpenPal} />
     </section>
   );
 }
 
-function CategoryRow({ c, count, palOpen, onTogglePal, onDelete }: {
-  c: Category; count: number; palOpen: boolean; onTogglePal: () => void; onDelete: () => void;
+/** Owners: who a spend was for. Deleting one leaves its spends unassigned. */
+function OwnersSection({ openPal, setOpenPal }: { openPal: string | null; setOpenPal: (id: string | null) => void }) {
+  const { confirm } = useSheets();
+  const owners = useOwners();
+  const expenses = useStore(s => s.data.expenses);
+  const entries = useStore(s => s.data.entries);
+  const [newName, setNewName] = useState('');
+  const newRef = useRef<HTMLInputElement>(null);
+
+  const usage = useMemo(() => {
+    const u: Record<string, number> = {};
+    for (const e of expenses) if (e.kind === 'spent' && e.owner_id) u[e.owner_id] = (u[e.owner_id] ?? 0) + 1;
+    for (const x of entries) if (x.owner_id) u[x.owner_id] = (u[x.owner_id] ?? 0) + 1;
+    return u;
+  }, [expenses, entries]);
+
+  const remove = async (o: Owner) => {
+    const n = usage[o.id] ?? 0;
+    const ok = await confirm({
+      title: `Delete “${o.name}”?`,
+      text: n
+        ? <>{n} spend{n > 1 ? 's belong' : ' belongs'} to {o.name}. {n > 1 ? 'They’ll' : 'It’ll'} become <b>unassigned</b>.</>
+        : 'No spends belong to this owner.',
+      ok: 'Delete owner',
+      danger: true,
+    });
+    if (ok) deleteOwner(o.id);
+  };
+
+  return (
+    <div className="set-sec"><h4>Owners</h4>
+      <div className="set-card">
+        {owners.map(o => (
+          <NamedRow key={o.id} c={o} kind="owner" count={usage[o.id] ?? 0} palOpen={openPal === o.id}
+            onTogglePal={() => setOpenPal(openPal === o.id ? null : o.id)} onDelete={() => remove(o)}
+            onSave={patch => {
+              const cur = store.get().data.owners.find(x => x.id === o.id);
+              if (cur) updateOwner({ ...cur, ...patch });
+            }} />
+        ))}
+        <form className="add-cat" onSubmit={e => {
+          e.preventDefault();
+          if (!newName.trim()) return shake(newRef.current);
+          addOwner(newName);
+          setNewName('');
+          newRef.current?.focus();
+        }}>
+          <input ref={newRef} className="input" name="owner" placeholder="New owner, e.g. Office" maxLength={40}
+            value={newName} onChange={e => setNewName(e.target.value)} aria-label="New owner name" />
+          <button className="btn-ink" type="submit">Add</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function NamedRow({ c, kind, count, palOpen, onTogglePal, onDelete, onSave }: {
+  c: Category | Owner; kind: 'category' | 'owner'; count: number; palOpen: boolean;
+  onTogglePal: () => void; onDelete: () => void; onSave: (patch: { name?: string; color?: string }) => void;
 }) {
   const [name, setName] = useState(c.name);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -82,20 +149,16 @@ function CategoryRow({ c, count, palOpen, onTogglePal, onDelete }: {
     timer.current = setTimeout(() => {
       timer.current = undefined;
       const n = v.trim().slice(0, 40);
-      const cur = store.get().data.categories.find(x => x.id === c.id);
-      if (n && cur && n !== cur.name) updateCategory({ ...cur, name: n });
+      if (n && n !== c.name) onSave({ name: n });
     }, 400);
   };
-  const setColor = (color: string) => {
-    const cur = store.get().data.categories.find(x => x.id === c.id);
-    if (cur) updateCategory({ ...cur, color: color.toUpperCase() });
-  };
+  const setColor = (color: string) => onSave({ color: color.toUpperCase() });
 
   return (
     <>
       <div className="cat-row" style={cssVar(c.color)}>
         <button className="swatch" aria-label={`Change colour of ${c.name}`} aria-expanded={palOpen} onClick={onTogglePal} />
-        <input className="cat-name" value={name} maxLength={40} aria-label="Category name"
+        <input className="cat-name" value={name} maxLength={40} aria-label={kind === 'owner' ? 'Owner name' : 'Category name'}
           onChange={e => onName(e.target.value)} onBlur={() => { if (!name.trim()) setName(c.name); }} />
         <span className="cat-count">{count ? `${count} used` : ''}</span>
         <button className="icon-btn" aria-label={`Delete ${c.name}`} onClick={onDelete}><I.trash /></button>

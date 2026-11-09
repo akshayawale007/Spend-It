@@ -5,10 +5,12 @@ import { useMonthData } from '@/hooks/useMonthData';
 import { AppProvider, useApp, type AppUser } from './AppContext';
 import { CompactBar, Controls, DeskHeader, Dock, Fab, Sidebar } from './Chrome';
 import { ExpenseList } from './ExpenseList';
+import { Loader } from './Loader';
 import { Hero } from './Hero';
 import { Insights, SpendByCategory } from './Insights';
 import { ProfilePage } from './ProfilePage';
 import { SettingsPage } from './SettingsPage';
+import { SpendsPage } from './SpendsPage';
 import { SheetProvider } from './Sheet';
 import { SyncNotice, SyncToasts } from './SyncNotice';
 import { ToastProvider } from './Toast';
@@ -45,7 +47,7 @@ function Main() {
         ) : tab === 'me' ? (
           <ProfilePage />
         ) : !loaded ? (
-          <div className="loading" role="status">Loading your month…</div>
+          <Loader />
         ) : tab === 'exp' ? (
           // Phones: one column. Laptops: balance column + list. Wide screens: + category column.
           <section id="view-exp" className="exp-grid">
@@ -61,8 +63,10 @@ function Main() {
               <CategoryCard expenses={expenses} total={totals.spent} />
             </div>
           </section>
+        ) : tab === 'spn' ? (
+          <SpendsPage expenses={expenses} />
         ) : (
-          <Insights expenses={expenses} totals={totals} closed={closed} />
+          <Insights incomes={incomes} expenses={expenses} totals={totals} closed={closed} />
         )}
       </main>
       {tab === 'exp' && <Fab />}

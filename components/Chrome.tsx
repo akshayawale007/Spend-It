@@ -42,13 +42,13 @@ export function Controls() {
   const pickMonth = useMonthPicker();
   return (
     <div className="ctl">
-      {(tab === 'exp' || tab === 'ins') && (
+      {(tab === 'exp' || tab === 'ins' || tab === 'spn') && (
         <button className="mpill glass" aria-label={`${monthLabel(month)}, change month`} onClick={pickMonth}>
           {monthShort(month)} {month.slice(0, 4)}
         </button>
       )}
-      <button className={tab === 'me' ? 'me-btn glass on' : 'me-btn glass'} aria-label="Profile, data and account"
-        aria-pressed={tab === 'me'} onClick={() => go('me')}>
+      <button className={tab === 'me' || tab === 'set' ? 'me-btn glass on' : 'me-btn glass'} aria-label="Profile, settings and account"
+        aria-pressed={tab === 'me' || tab === 'set'} onClick={() => go('me')}>
         <Avatar user={user} />
       </button>
     </div>
@@ -96,8 +96,8 @@ export function Dock() {
   return (
     <nav className="dock glass" aria-label="Sections">
       <button className="tab" aria-selected={tab === 'exp'} onClick={() => go('exp')}><I.navExpenses /> Expenses</button>
+      <button className="tab" aria-selected={tab === 'spn'} onClick={() => go('spn')}><I.navSpends /> Spends</button>
       <button className="tab" aria-selected={tab === 'ins'} onClick={() => go('ins')}><I.navInsights /> Insights</button>
-      <button className="tab" aria-selected={tab === 'set'} onClick={() => go('set')}><I.navSettings /> Settings</button>
     </nav>
   );
 }
@@ -142,6 +142,7 @@ export function Sidebar() {
 
       <nav className="side-nav" aria-label="Sections">
         <button aria-current={tab === 'exp' ? 'page' : undefined} onClick={() => go('exp')}><I.navExpenses /> Expenses</button>
+        <button aria-current={tab === 'spn' ? 'page' : undefined} onClick={() => go('spn')}><I.navSpends /> Spends</button>
         <button aria-current={tab === 'ins' ? 'page' : undefined} onClick={() => go('ins')}><I.navInsights /> Insights</button>
         <button aria-current={tab === 'set' ? 'page' : undefined} onClick={() => go('set')}><I.navSettings /> Settings</button>
       </nav>
@@ -162,7 +163,7 @@ export function Sidebar() {
   );
 }
 
-const TITLES: Record<Tab, string> = { exp: 'Expenses', ins: 'Insights', set: 'Settings', me: 'Profile' };
+const TITLES: Record<Tab, string> = { exp: 'Expenses', spn: 'Spends', ins: 'Insights', set: 'Settings', me: 'Profile' };
 
 /** Desktop page header: title on the left, month switcher sticky at the top right. */
 export function DeskHeader() {
@@ -171,7 +172,7 @@ export function DeskHeader() {
   return (
     <header className="desk-head">
       <h1>{TITLES[tab]}</h1>
-      {(tab === 'exp' || tab === 'ins') && (
+      {(tab === 'exp' || tab === 'ins' || tab === 'spn') && (
         <div className="month-sw glass">
           {month !== curKey() && <button className="month-now" onClick={() => goMonth(curKey())}>This month</button>}
           <button className="icon-btn" aria-label="Previous month" onClick={() => goMonth(shiftKey(month, -1))}><I.left /></button>

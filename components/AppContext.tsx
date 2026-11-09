@@ -13,7 +13,7 @@ export type AppUser = {
   /** Supabase is configured, so a local user can sign in to sync. */
   canSignIn: boolean;
 };
-export type Tab = 'exp' | 'ins' | 'set' | 'me';
+export type Tab = 'exp' | 'spn' | 'ins' | 'set' | 'me';
 
 type Ctx = {
   user: AppUser;
@@ -28,6 +28,10 @@ type Ctx = {
   setHeroOpen: (v: boolean) => void;
   isExpanded: (id: string) => boolean;
   setExpanded: (id: string, open: boolean) => void;
+  /** Insights what-if: card and spend ids left out of the numbers. Cleared when the month changes. */
+  unticked: ReadonlySet<string>;
+  toggleTick: (id: string) => void;
+  tickAll: () => void;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -41,21 +45,32 @@ export function AppProvider({ user, children }: { user: AppUser; children: React
   const [heroOpen, setHeroOpen] = useState(false);
   const [catFilter, setCatFilter] = useState<string | null>(null);
   const [expanded, setExpandedSet] = useState<Set<string>>(() => new Set());
+  const [unticked, setUnticked] = useState<ReadonlySet<string>>(() => new Set());
 
   useEffect(() => {
-    try { if (JSON.parse(localStorage.getItem(UI_KEY) || '{}').tab === 'ins') setTabState('ins'); } catch { /* ignore */ }
+    try { const t = JSON.parse(localStorage.getItem(UI_KEY) || '{}').tab; if (t === 'ins' || t === 'spn') setTabState(t); } catch { /* ignore */ }
   }, []);
 
   const setTab = useCallback((t: Tab) => {
     setTabState(t);
-    // Only the two main views are remembered; Settings and Profile aren't where you want to land on reload.
-    if (t === 'exp' || t === 'ins') try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: t })); } catch { /* ignore */ }
+    // Only the main views are remembered; Settings and Profile aren't where you want to land on reload.
+    if (t === 'exp' || t === 'ins' || t === 'spn') try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: t })); } catch { /* ignore */ }
   }, []);
 
   const goMonth = useCallback((k: string) => {
     setMonth(k);
+    setUnticked(new Set());
     scrollTop();
   }, []);
+
+  const toggleTick = useCallback((id: string) => {
+    setUnticked(s => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }, []);
+  const tickAll = useCallback(() => setUnticked(new Set()), []);
 
   const setExpanded = useCallback((id: string, open: boolean) => {
     setExpandedSet(s => {
@@ -68,8 +83,8 @@ export function AppProvider({ user, children }: { user: AppUser; children: React
 
   const value = useMemo<Ctx>(() => ({
     user, month, goMonth, tab, setTab, catFilter, setCatFilter, heroOpen, setHeroOpen,
-    isExpanded: id => expanded.has(id), setExpanded,
-  }), [user, month, goMonth, tab, setTab, catFilter, heroOpen, expanded, setExpanded]);
+    isExpanded: id => expanded.has(id), setExpanded, unticked, toggleTick, tickAll,
+  }), [user, month, goMonth, tab, setTab, catFilter, heroOpen, expanded, setExpanded, unticked, toggleTick, tickAll]);
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }

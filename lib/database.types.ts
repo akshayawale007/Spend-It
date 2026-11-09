@@ -12,6 +12,12 @@ export type Database = {
         Update: { id?: string; user_id?: string; name?: string; color?: string; sort_order?: number; created_at?: string; updated_at?: string };
         Relationships: [];
       };
+      owners: {
+        Row: { id: string; user_id: string; name: string; color: string; sort_order: number; created_at: string; updated_at: string };
+        Insert: { id?: string; user_id?: string; name: string; color: string; sort_order?: number; created_at?: string; updated_at?: string };
+        Update: { id?: string; user_id?: string; name?: string; color?: string; sort_order?: number; created_at?: string; updated_at?: string };
+        Relationships: [];
+      };
       incomes: {
         Row: { id: string; user_id: string; month_key: string; name: string; amount: number; date: string | null; created_at: string; updated_at: string };
         Insert: { id?: string; user_id?: string; month_key: string; name: string; amount: number; date?: string | null; created_at?: string; updated_at?: string };
@@ -20,15 +26,15 @@ export type Database = {
       };
       expenses: {
         Row: {
-          id: string; user_id: string; month_key: string; name: string; category_id: string | null;
+          id: string; user_id: string; month_key: string; name: string; category_id: string | null; owner_id: string | null;
           kind: 'expected' | 'spent'; amount: number; date: string | null; note: string; created_at: string; updated_at: string;
         };
         Insert: {
-          id?: string; user_id?: string; month_key: string; name: string; category_id?: string | null;
+          id?: string; user_id?: string; month_key: string; name: string; category_id?: string | null; owner_id?: string | null;
           kind: 'expected' | 'spent'; amount: number; date?: string | null; note?: string; created_at?: string; updated_at?: string;
         };
         Update: {
-          id?: string; user_id?: string; month_key?: string; name?: string; category_id?: string | null;
+          id?: string; user_id?: string; month_key?: string; name?: string; category_id?: string | null; owner_id?: string | null;
           kind?: 'expected' | 'spent'; amount?: number; date?: string | null; note?: string; created_at?: string; updated_at?: string;
         };
         Relationships: [
@@ -36,9 +42,9 @@ export type Database = {
         ];
       };
       spend_entries: {
-        Row: { id: string; user_id: string; expense_id: string; amount: number; date: string; note: string; created_at: string; updated_at: string };
-        Insert: { id?: string; user_id?: string; expense_id: string; amount: number; date: string; note?: string; created_at?: string; updated_at?: string };
-        Update: { id?: string; user_id?: string; expense_id?: string; amount?: number; date?: string; note?: string; created_at?: string; updated_at?: string };
+        Row: { id: string; user_id: string; expense_id: string; owner_id: string | null; amount: number; date: string; note: string; created_at: string; updated_at: string };
+        Insert: { id?: string; user_id?: string; expense_id: string; owner_id?: string | null; amount: number; date: string; note?: string; created_at?: string; updated_at?: string };
+        Update: { id?: string; user_id?: string; expense_id?: string; owner_id?: string | null; amount?: number; date?: string; note?: string; created_at?: string; updated_at?: string };
         Relationships: [
           { foreignKeyName: 'spend_entries_expense_id_fkey'; columns: ['expense_id']; isOneToOne: false; referencedRelation: 'expenses'; referencedColumns: ['id'] },
         ];
@@ -53,7 +59,7 @@ export type Database = {
     Views: { [_ in never]: never };
     Functions: {
       replace_all_data: {
-        Args: { p_categories: Json; p_incomes: Json; p_expenses: Json; p_entries: Json };
+        Args: { p_categories: Json; p_incomes: Json; p_expenses: Json; p_entries: Json; p_owners?: Json | null };
         Returns: undefined;
       };
     };

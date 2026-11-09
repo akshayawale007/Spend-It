@@ -10,6 +10,7 @@ import { useCategories } from '@/hooks/useMonthData';
 import { useApp } from './AppContext';
 import { DateField } from './DateField';
 import { I } from './icons';
+import { liveOwner, OwnerPicker, ownerMissing } from './OwnerPicker';
 import { useToast } from './Toast';
 import { cssVar, shake } from './util';
 
@@ -32,6 +33,7 @@ export function ExpenseSheet({ month, expenseId, toKind, close }: {
   const [name, setName] = useState(exp?.name ?? '');
   const [amount, setAmount] = useState(exp ? String(exp.amount) : '');
   const [cat, setCat] = useState<string | null>(exp?.category_id ?? null);
+  const [owner, setOwner] = useState<string | null>(exp?.owner_id ?? null);
   const [manualCat, setManualCat] = useState(!!exp);
   const [date, setDate] = useState(exp?.date ?? defaultDate(month));
   const [note, setNote] = useState(exp?.note ?? '');
@@ -43,6 +45,7 @@ export function ExpenseSheet({ month, expenseId, toKind, close }: {
   const amtRef = useRef<HTMLInputElement>(null);
   const newCatRef = useRef<HTMLInputElement>(null);
   const catsRef = useRef<HTMLDivElement>(null);
+  const ownRef = useRef<HTMLDivElement>(null);
 
   const catObj = categories.find(c => c.id === cat) ?? null;
 
@@ -74,6 +77,7 @@ export function ExpenseSheet({ month, expenseId, toKind, close }: {
     if (c) setCat(c.id);
   };
 
+  const openBudget = !amount.trim() || parseAmt(amount) === 0;
   const hint = useMemo(() => {
     let h = kind === 'expected'
       ? 'Reserved from your balance now — log each payment under it as the month goes.'
@@ -84,8 +88,10 @@ export function ExpenseSheet({ month, expenseId, toKind, close }: {
       h = entCount
         ? `Your ${entCount} earlier logged spend${entCount > 1 ? 's' : ''} (${fmt(entTotal)}) come back. Set the monthly budget above.`
         : 'Set the monthly budget above.';
+    if (kind === 'expected' && openBudget && !(exp && origKind === 'spent'))
+      h = 'No fixed budget — nothing is reserved. Only the spends you log are subtracted.';
     return h;
-  }, [kind, exp, origKind, entCount, entTotal]);
+  }, [kind, exp, origKind, entCount, entTotal, openBudget]);
 
   const showConvert = !!exp && origKind === 'spent' && kind === 'expected' && !entCount;
 
@@ -93,13 +99,17 @@ export function ExpenseSheet({ month, expenseId, toKind, close }: {
     ev.preventDefault();
     const n = name.trim();
     if (!n) return shake(nameRef.current);
-    const a = parseAmt(amount);
-    if (!(a > 0)) return shake(amtRef.current);
+    // Expected can have no fixed budget: empty or 0.
+    const a = kind === 'expected' && !amount.trim() ? 0 : parseAmt(amount);
+    if (!(a > 0) && !(kind === 'expected' && a === 0)) return shake(amtRef.current);
+    // A one-off spent card is itself a spend, so it needs an owner. On expected cards it's only the default for new spends.
+    if (kind === 'spent' && ownerMissing(owner)) { toast('Pick who this spend is for'); return shake(ownRef.current); }
     const catId = categories.some(c => c.id === cat) ? cat : fallbackCategory(categories)?.id ?? null;
     const d = date || defaultDate(month);
+    const ownerId = liveOwner(owner);
     if (isNew) {
       saveExpense({
-        id: newId(), month_key: month, name: n, category_id: catId, kind, amount: a,
+        id: newId(), month_key: month, name: n, category_id: catId, owner_id: ownerId, kind, amount: a,
         date: kind === 'spent' ? d : null, note: note.trim(), created_at: stamp(),
       });
       toast(kind === 'expected' ? `${fmt(a)} reserved for ${n}` : `${fmt(a)} spent on ${n}`);
@@ -108,12 +118,12 @@ export function ExpenseSheet({ month, expenseId, toKind, close }: {
       // Entries may have been logged since the sheet opened; check the live list.
       const liveCount = allEntries.filter(x => x.expense_id === exp.id).length;
       if (showConvert && logFirst && !liveCount)
-        first.push({ id: newId(), expense_id: exp.id, amount: exp.amount, date: exp.date || defaultDate(month), note: exp.note, created_at: stamp() });
-      saveExpense({ ...exp, name: n, amount: a, category_id: catId, kind, note: note.trim(), date: kind === 'spent' ? d : exp.date }, first);
+        first.push({ id: newId(), expense_id: exp.id, owner_id: exp.owner_id ?? null, amount: exp.amount, date: exp.date || defaultDate(month), note: exp.note, created_at: stamp() });
+      saveExpense({ ...exp, name: n, amount: a, category_id: catId, owner_id: ownerId, kind, note: note.trim(), date: kind === 'spent' ? d : exp.date }, first);
       if (origKind !== kind) setExpanded(exp.id, true);
       toast('Saved');
     }
-    setTab('exp');
+    if (isNew) setTab('exp'); // show a new card; edits stay on the tab they came from
     close();
   };
 
@@ -147,7 +157,7 @@ export function ExpenseSheet({ month, expenseId, toKind, close }: {
               value={amount} onChange={e => setAmount(e.target.value)} />
           </div>
           <div className="pv-foot">
-            <span>{kind === 'expected' ? 'Monthly budget' : 'Amount spent'}</span>
+            <span>{kind === 'expected' ? (openBudget ? 'No fixed budget' : 'Monthly budget') : 'Amount spent'}</span>
             {catObj && <span className="tag">{catObj.name}</span>}
           </div>
         </div>
@@ -175,6 +185,11 @@ export function ExpenseSheet({ month, expenseId, toKind, close }: {
               <button type="button" className="btn-ink" onClick={addCat}>Add</button>
             </div>
           )}
+        </div>
+
+        <div className="field">
+          <div className="flabel"><span>{kind === 'spent' ? 'Owner' : 'Default owner for spends'}</span>{kind === 'expected' && <> <span className="opt">optional</span></>}</div>
+          <OwnerPicker value={owner} onChange={setOwner} required={kind === 'spent'} pickRef={ownRef} />
         </div>
 
         <div className="two" style={kind === 'spent' ? undefined : { gridTemplateColumns: '1fr' }}>

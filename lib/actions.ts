@@ -2,7 +2,7 @@
 // High-level mutations. Each applies optimistically via the store; deletes return an undo.
 import { fallbackCategory, nextColor } from './categories';
 import { store } from './store';
-import type { Category, Entry, Expense, Income } from './types';
+import type { Category, Entry, Expense, Income, Owner } from './types';
 import { uuid as makeUuid } from './uuid';
 
 const uuid = makeUuid;
@@ -81,13 +81,41 @@ export function deleteCategory(id: string) {
   ]);
 }
 
-/** Copies the expected budgets (name, category, amount, note — no entries, no money). */
-export function copyBudgets(fromMonth: string, toMonth: string) {
+export function addOwner(name: string): Owner {
+  const os = data().owners;
+  const row: Owner = {
+    id: uuid(),
+    name: name.trim().slice(0, 40),
+    color: nextColor(os),
+    sort_order: os.reduce((m, o) => Math.max(m, o.sort_order), -1) + 1,
+    created_at: nowIso(),
+  };
+  store.apply([{ t: 'upsert', table: 'owners', rows: [row] }]);
+  return row;
+}
+
+export function updateOwner(row: Owner) {
+  store.apply([{ t: 'upsert', table: 'owners', rows: [row] }]);
+}
+
+/** Spends and cards that had this owner become unassigned (the database does the same). */
+export function deleteOwner(id: string) {
+  store.apply([{ t: 'delete', table: 'owners', ids: [id] }]);
+}
+
+/** Copies the expected budgets (name, category, owner, amount, note — no entries, no money). */
+/**
+ * Copies the chosen expense cards into another month as fresh expected cards: same name,
+ * category, default owner and budget, but none of their logged spends. A one-off spent
+ * card comes over as an expected card with its amount as the budget.
+ */
+export function importCards(ids: string[], toMonth: string) {
+  const pick = new Set(ids);
   const src = data().expenses
-    .filter(e => e.month_key === fromMonth && e.kind === 'expected')
+    .filter(e => pick.has(e.id))
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
   const rows: Expense[] = src.map((e, i) => ({
-    id: uuid(), month_key: toMonth, name: e.name, category_id: e.category_id, kind: 'expected',
+    id: uuid(), month_key: toMonth, name: e.name, category_id: e.category_id, owner_id: e.owner_id ?? null, kind: 'expected',
     amount: e.amount, date: null, note: e.note, created_at: nowIso(i),
   }));
   if (rows.length) store.apply([{ t: 'upsert', table: 'expenses', rows }]);

@@ -74,6 +74,17 @@ describe('rules', () => {
     expect(t.bank).toBe(1000);
   });
 
+  it('expected with no fixed budget only counts what is logged', () => {
+    const open = expected(0, [300, 200]);
+    expect(deduction(expected(0, []), false)).toBe(0);
+    expect(deduction(open, false)).toBe(500);
+    expect(deduction(open, true)).toBe(500);
+    expect(gaugePct(open)).toBe(100);
+    expect(gaugePct(expected(0, []))).toBe(100);
+    expect(isFull(open)).toBe(false);
+    expect(isDone(open)).toBe(false);
+  });
+
   it('deduction per kind', () => {
     expect(deduction(spent(650), false)).toBe(650);
     expect(deduction(spent(650), true)).toBe(650);

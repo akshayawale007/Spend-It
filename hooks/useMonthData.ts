@@ -2,8 +2,9 @@
 import { useMemo } from 'react';
 import { isClosed, totals } from '@/lib/calc';
 import { sortCategories, UNCATEGORISED } from '@/lib/categories';
+import { NO_OWNER, sortOwners } from '@/lib/owners';
 import { useStore } from '@/lib/store';
-import type { Category, Data, ExpenseWithEntries } from '@/lib/types';
+import type { Category, Data, ExpenseWithEntries, Owner } from '@/lib/types';
 
 export function monthView(data: Data, month: string, now = new Date()) {
   const incomes = data.incomes
@@ -19,7 +20,8 @@ export function monthView(data: Data, month: string, now = new Date()) {
     .map(e => ({
       ...e,
       // Entries are kept but ignored while the expense is a one-off "spent" payment.
-      entries: (byExp.get(e.id) ?? []).sort((a, b) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at)),
+      // Newest first: latest date, then latest logged.
+      entries: (byExp.get(e.id) ?? []).sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at)),
     }));
   const closed = isClosed(month, now);
   return { incomes, expenses, closed, totals: totals(incomes, expenses.map(calcView), closed) };
@@ -45,6 +47,20 @@ export function useCategoryLookup() {
     return (id: string | null): Pick<Category, 'name' | 'color'> & { id: string | null } =>
       (id && m.get(id)) || { id, ...UNCATEGORISED };
   }, [cats]);
+}
+
+export function useOwners() {
+  const os = useStore(s => s.data.owners);
+  return useMemo(() => sortOwners(os ?? []), [os]);
+}
+
+export function useOwnerLookup() {
+  const os = useStore(s => s.data.owners);
+  return useMemo(() => {
+    const m = new Map((os ?? []).map(o => [o.id, o]));
+    return (id: string | null | undefined): Pick<Owner, 'name' | 'color'> & { id: string | null } =>
+      (id && m.get(id)) || { id: id ?? null, ...NO_OWNER };
+  }, [os]);
 }
 
 export function useMonthsWithData() {

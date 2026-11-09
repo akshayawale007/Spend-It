@@ -10,10 +10,12 @@
 //    Everything stays on the device and moves into the account at the next sign-in.
 import { useSyncExternalStore } from 'react';
 import { DEFAULT_CATEGORIES } from './categories';
+import { curKey } from './format';
+import { DEFAULT_OWNERS } from './owners';
 import { hasLocalContent, localToOps } from './merge';
 import { applyOps, type Op } from './ops';
 import { createClient } from './supabase/client';
-import type { Category, Data, TableName } from './types';
+import type { Category, Data, Owner, TableName } from './types';
 import { uuid } from './uuid';
 
 export type SyncState = 'saved' | 'saving' | 'offline' | 'error' | 'local';
@@ -28,8 +30,8 @@ export type StoreState = {
   notice: string | null;
 };
 
-const EMPTY: Data = { categories: [], incomes: [], expenses: [], entries: [] };
-const TABLES: TableName[] = ['categories', 'incomes', 'expenses', 'spend_entries'];
+const EMPTY: Data = { categories: [], owners: [], incomes: [], expenses: [], entries: [] };
+const TABLES: TableName[] = ['categories', 'owners', 'incomes', 'expenses', 'spend_entries'];
 const PAGE = 1000;
 const POLL_MS = 60_000;
 
@@ -44,7 +46,7 @@ function isRetryable(status: number, message = '') {
 function clean(table: TableName, row: Record<string, unknown>) {
   const { user_id: _u, ...rest } = row;
   if ('amount' in rest && rest.amount != null) rest.amount = Number(rest.amount);
-  if (table === 'categories') rest.sort_order = Number(rest.sort_order ?? 0);
+  if (table === 'categories' || table === 'owners') rest.sort_order = Number(rest.sort_order ?? 0);
   return rest;
 }
 
@@ -67,6 +69,8 @@ class Store {
   private backoff = 1000;
   private refreshing: Promise<void> | null = null;
   private wired = false;
+  /** Only this month is loaded so far (quick first load); never cache that as if it were everything. */
+  private partial = false;
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn);
@@ -84,7 +88,8 @@ class Store {
   private persist() {
     if (!this.uid) return;
     try {
-      localStorage.setItem(cacheKey(this.uid), JSON.stringify({ data: this.state.data, queue: this.queue }));
+      // While only one month is loaded, keep just the pending writes: the next open loads everything again.
+      localStorage.setItem(cacheKey(this.uid), JSON.stringify({ data: this.partial ? EMPTY : this.state.data, queue: this.queue }));
     } catch { /* storage full or blocked */ }
   }
 
@@ -93,6 +98,7 @@ class Store {
     this.uid = uid;
     this.mode = mode;
     this.queue = [];
+    this.partial = false;
     let data = EMPTY;
     try {
       const raw = localStorage.getItem(cacheKey(uid));
@@ -134,8 +140,11 @@ class Store {
     if (!navigator.onLine) { this.set({ sync: 'offline', loaded: true }); return; }
     await this.flush();
     if (this.queue.length) { this.set({ loaded: true }); return; } // still can't reach the server
+    const sb = createClient();
+    // Nothing cached yet (first open, or a cleared device): fetch just this month first so
+    // the Expenses page appears quickly, then load every other month in the background.
+    if (!this.state.loaded) await this.loadMonthFirst(sb, curKey());
     try {
-      const sb = createClient();
       const fetched = {} as Record<TableName, Record<string, unknown>[]>;
       await Promise.all(TABLES.map(async t => {
         const rows: Record<string, unknown>[] = [];
@@ -149,6 +158,7 @@ class Store {
       }));
       let data = {
         categories: fetched.categories,
+        owners: fetched.owners,
         incomes: fetched.incomes,
         expenses: fetched.expenses,
         entries: fetched.spend_entries,
@@ -156,6 +166,7 @@ class Store {
       // Writes made while we were fetching are replayed on top.
       data = applyOps(data, this.queue);
       this.backoff = 1000;
+      this.partial = false;
       this.set({ data, loaded: true, sync: this.queue.length ? 'saving' : 'saved' });
       this.persist();
       this.adoptLocalData();
@@ -164,6 +175,36 @@ class Store {
       console.warn('[spendit] refresh failed', e);
       this.set({ loaded: true, sync: downState() });
       this.scheduleRetry();
+    }
+  }
+
+  /** Shows one month as soon as it arrives. Not cached: the full load that follows replaces it. */
+  private async loadMonthFirst(sb: ReturnType<typeof createClient>, month: string) {
+    try {
+      const [cats, owners, incomes, expenses] = await Promise.all([
+        sb.from('categories').select('*'),
+        sb.from('owners').select('*'),
+        sb.from('incomes').select('*').eq('month_key', month),
+        sb.from('expenses').select('*').eq('month_key', month),
+      ]);
+      const err = cats.error ?? owners.error ?? incomes.error ?? expenses.error;
+      if (err) throw err;
+      const ids = (expenses.data ?? []).map(e => e.id);
+      const entries = ids.length ? await sb.from('spend_entries').select('*').in('expense_id', ids) : { data: [], error: null };
+      if (entries.error) throw entries.error;
+      if (this.state.loaded) return; // the full load beat us to it
+      const rows = (t: TableName, list: object[] | null) => (list ?? []).map(r => clean(t, r as Record<string, unknown>));
+      const data = {
+        categories: rows('categories', cats.data),
+        owners: rows('owners', owners.data),
+        incomes: rows('incomes', incomes.data),
+        expenses: rows('expenses', expenses.data),
+        entries: rows('spend_entries', entries.data),
+      } as unknown as Data;
+      this.partial = true;
+      this.set({ data: applyOps(data, this.queue), loaded: true, sync: 'saving' });
+    } catch (e) {
+      console.warn('[spendit] quick month load failed', e); // the full load below still runs
     }
   }
 
@@ -176,7 +217,7 @@ class Store {
     } catch { /* ignore */ }
     if (!local) return;
     if (hasLocalContent(local)) {
-      this.apply(localToOps(local, this.state.data.categories));
+      this.apply(localToOps(local, this.state.data.categories, this.state.data.owners));
       const n = local.incomes.length + local.expenses.length;
       this.set({ notice: `Synced ${n} item${n === 1 ? '' : 's'} saved on this device to your account` });
     }
@@ -188,7 +229,13 @@ class Store {
     const rows: Category[] = DEFAULT_CATEGORIES.map((c, i) => ({
       id: uuid(), name: c.name, color: c.color, sort_order: i, created_at: new Date(now + i).toISOString(),
     }));
-    this.apply([{ t: 'upsert', table: 'categories', rows }]);
+    const owners: Owner[] = this.state.data.owners.length ? [] : DEFAULT_OWNERS.map((o, i) => ({
+      id: uuid(), name: o.name, color: o.color, sort_order: i, created_at: new Date(now + i).toISOString(),
+    }));
+    this.apply([
+      { t: 'upsert', table: 'categories', rows },
+      ...(owners.length ? [{ t: 'upsert' as const, table: 'owners' as const, rows: owners }] : []),
+    ]);
   }
 
   /** Applies ops locally right away and (in cloud mode) queues them for the server. */
@@ -269,6 +316,7 @@ class Store {
       p_incomes: data.incomes,
       p_expenses: data.expenses.map(e => clean('expenses', e as never)),
       p_entries: data.entries,
+      p_owners: data.owners,
     } as never);
     if (error) {
       console.error('[spendit] replace failed', error);

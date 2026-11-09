@@ -4,6 +4,7 @@ import { deleteEntry, saveEntry } from '@/lib/actions';
 import { fmt, parseAmt } from '@/lib/format';
 import { store } from '@/lib/store';
 import { DateField } from './DateField';
+import { liveOwner, OwnerPicker, ownerMissing } from './OwnerPicker';
 import { useToast } from './Toast';
 import { shake } from './util';
 
@@ -18,7 +19,9 @@ export function EntrySheet({ entryId, close }: { entryId: string; close: () => v
   const [amount, setAmount] = useState(en ? String(en.amount) : '');
   const [date, setDate] = useState(en?.date ?? '');
   const [note, setNote] = useState(en?.note ?? '');
+  const [owner, setOwner] = useState<string | null>(en?.owner_id ?? null);
   const amtRef = useRef<HTMLInputElement>(null);
+  const ownRef = useRef<HTMLDivElement>(null);
   if (!en || !exp) return <p className="hint">This spend no longer exists.</p>;
 
   return (
@@ -28,7 +31,8 @@ export function EntrySheet({ entryId, close }: { entryId: string; close: () => v
         ev.preventDefault();
         const a = parseAmt(amount);
         if (!(a > 0)) return shake(amtRef.current);
-        saveEntry({ ...en, amount: a, date: date || en.date, note: note.trim() });
+        if (ownerMissing(owner)) { toast('Pick who this spend is for'); return shake(ownRef.current); }
+        saveEntry({ ...en, owner_id: liveOwner(owner), amount: a, date: date || en.date, note: note.trim() });
         close();
         toast('Spend updated');
       }}>
@@ -39,6 +43,10 @@ export function EntrySheet({ entryId, close }: { entryId: string; close: () => v
           </div>
         </div>
         <div className="field"><div className="flabel">Date</div><DateField className="input" value={date} onChange={setDate} /></div>
+        <div className="field">
+          <div className="flabel">Owner</div>
+          <OwnerPicker value={owner} onChange={setOwner} required pickRef={ownRef} />
+        </div>
         <div className="field">
           <div className="flabel">Note <span className="opt">optional</span></div>
           <input className="input" name="note" aria-label="Note" value={note} onChange={e => setNote(e.target.value)} />

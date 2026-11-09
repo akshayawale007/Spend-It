@@ -30,7 +30,10 @@ export const I = {
   cal: () => <Sv size={16}><rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M8 3v4M16 3v4M3.5 10h17" /></Sv>,
   list: () => <Sv><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="4.5" cy="6" r="1" /><circle cx="4.5" cy="12" r="1" /><circle cx="4.5" cy="18" r="1" /></Sv>,
   pie: ({ size = 18 }: { size?: number } = {}) => <Sv size={size}><path d="M21 12A9 9 0 1 1 12 3v9h9Z" /><path d="M15 3.5A9 9 0 0 1 20.5 9H15V3.5Z" /></Sv>,
+  sort: () => <Sv size={15} sw={2.2}><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></Sv>,
   x: () => <Sv size={13} sw={2.6}><path d="M18 6 6 18M6 6l12 12" /></Sv>,
+  search: () => <Sv size={16} sw={2.2}><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></Sv>,
+  tick: () => <Sv size={13} sw={3}><path d="m5 12.5 4.5 4.5L19 7.5" /></Sv>,
   logout: () => <Sv size={15}><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4" /></Sv>,
   // Duotone navigation icons: a soft filled layer (.duo) under crisp 1.8px strokes.
   navExpenses: () => (
@@ -38,6 +41,16 @@ export const I = {
       <path className="duo" d="M6 2.8h12a1.2 1.2 0 0 1 1.2 1.2v16.4l-2.4-1.6-2.4 1.6-2.4-1.6-2.4 1.6-2.4-1.6-2.4 1.6V4A1.2 1.2 0 0 1 6 2.8Z" />
       <path d="M6 2.8h12a1.2 1.2 0 0 1 1.2 1.2v16.4l-2.4-1.6-2.4 1.6-2.4-1.6-2.4 1.6-2.4-1.6-2.4 1.6V4A1.2 1.2 0 0 1 6 2.8Z" />
       <path d="M8.8 8h6.4M8.8 11.6h6.4M8.8 15.2h3.6" />
+    </svg>
+  ),
+  navSpends: () => (
+    <svg className="ni" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect className="duo" x="3" y="3.5" width="18" height="17" rx="4" />
+      <rect x="3" y="3.5" width="18" height="17" rx="4" />
+      <circle cx="7.6" cy="8.6" r="1" fill="currentColor" stroke="none" />
+      <circle cx="7.6" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="7.6" cy="15.4" r="1" fill="currentColor" stroke="none" />
+      <path d="M10.6 8.6h6M10.6 12h6M10.6 15.4h4" />
     </svg>
   ),
   navInsights: () => (

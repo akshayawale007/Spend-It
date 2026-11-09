@@ -6,6 +6,13 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 8886
+    },
+    {
+      "name": "spendit-local",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev", "-p", "8887"],
+      "env": { "NEXT_PUBLIC_SUPABASE_URL": "", "NEXT_PUBLIC_SUPABASE_ANON_KEY": "", "NEXT_DIST_DIR": ".next-local" },
+      "port": 8887
     }
   ]
 }

@@ -31,6 +31,10 @@ export function applyOps(d: Data, ops: Op[]): Data {
       if (op.table === 'expenses') next = { ...next, entries: next.entries.filter(x => !ids.has(x.expense_id)) };
       if (op.table === 'categories')
         next = { ...next, expenses: next.expenses.map(e => (e.category_id && ids.has(e.category_id) ? { ...e, category_id: null } : e)) };
+      if (op.table === 'owners') {
+        const unset = <T extends { owner_id: string | null }>(r: T) => (r.owner_id && ids.has(r.owner_id) ? { ...r, owner_id: null } : r);
+        next = { ...next, expenses: next.expenses.map(unset), entries: next.entries.map(unset) };
+      }
     }
   }
   return next;
